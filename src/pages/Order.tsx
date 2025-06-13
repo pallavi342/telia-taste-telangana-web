@@ -125,7 +125,7 @@ const Order = () => {
         customerId = newCustomer.id;
       }
 
-      // Create the order - let the database trigger generate order_number
+      // Create the order - provide empty order_number to satisfy TypeScript, trigger will override it
       const orderData = {
         customer_id: customerId,
         customer_name: customerInfo.name,
@@ -134,7 +134,8 @@ const Order = () => {
         delivery_address: customerInfo.address || null,
         notes: customerInfo.notes || null,
         total_amount: getTotal(),
-        status: 'pending'
+        status: 'pending',
+        order_number: '' // Will be overwritten by database trigger
       };
 
       const { data: order, error: orderError } = await supabase

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,19 +125,21 @@ const Order = () => {
         customerId = newCustomer.id;
       }
 
-      // Create the order
+      // Create the order - let the database trigger generate order_number
+      const orderData = {
+        customer_id: customerId,
+        customer_name: customerInfo.name,
+        customer_email: customerInfo.email || null,
+        phone_number: customerInfo.phone,
+        delivery_address: customerInfo.address || null,
+        notes: customerInfo.notes || null,
+        total_amount: getTotal(),
+        status: 'pending'
+      };
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .insert({
-          customer_id: customerId,
-          customer_name: customerInfo.name,
-          customer_email: customerInfo.email || null,
-          phone_number: customerInfo.phone,
-          delivery_address: customerInfo.address || null,
-          notes: customerInfo.notes || null,
-          total_amount: getTotal(),
-          status: 'pending'
-        })
+        .insert(orderData)
         .select('id, order_number')
         .single();
 

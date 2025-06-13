@@ -18,6 +18,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Order Online', href: '/order' },
     { name: 'About Us', href: '/about' },
     { name: 'Contact', href: '/contact' },
+    { name: 'Admin', href: '/admin' },
   ];
 
   const isActive = (path: string) => location.pathname === path;

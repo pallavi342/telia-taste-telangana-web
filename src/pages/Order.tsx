@@ -1,68 +1,53 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useCart } from '@/hooks/useCart';
-import { ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { ShoppingCart, Plus, Minus, Trash2, User, Phone, MapPin } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface MenuItem {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  description?: string;
+  is_available: boolean;
+}
 
 const Order = () => {
   const { items, addItem, updateQuantity, removeItem, getTotal, clearCart } = useCart();
   const [activeCategory, setActiveCategory] = useState('starters');
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    notes: ''
+  });
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const { toast } = useToast();
 
-  const menuData = {
-    starters: [
-      { id: 's1', name: 'Veg Manchurian Dry', price: 120, category: 'starters' },
-      { id: 's2', name: 'Gobi 65', price: 130, category: 'starters' },
-      { id: 's3', name: 'Paneer Tikka', price: 160, category: 'starters' },
-      { id: 's4', name: 'Chicken 65', price: 180, category: 'starters' },
-      { id: 's5', name: 'Chicken Lollipop (6 pcs)', price: 200, category: 'starters' },
-      { id: 's6', name: 'Fish Fingers', price: 220, category: 'starters' }
-    ],
-    mainCourse: [
-      { id: 'm1', name: 'Veg Thali', price: 140, category: 'mainCourse' },
-      { id: 'm2', name: 'Dal Tadka', price: 100, category: 'mainCourse' },
-      { id: 'm3', name: 'Paneer Butter Masala', price: 170, category: 'mainCourse' },
-      { id: 'm4', name: 'Butter Chicken', price: 200, category: 'mainCourse' },
-      { id: 'm5', name: 'Chicken Curry', price: 180, category: 'mainCourse' },
-      { id: 'm6', name: 'Mutton Rogan Josh', price: 250, category: 'mainCourse' },
-      { id: 'm7', name: 'Egg Curry', price: 130, category: 'mainCourse' },
-      { id: 'm8', name: 'Chapati (per piece)', price: 15, category: 'mainCourse' },
-      { id: 'm9', name: 'Butter Naan', price: 25, category: 'mainCourse' }
-    ],
-    biryani: [
-      { id: 'b1', name: 'Veg Biryani', price: 140, category: 'biryani' },
-      { id: 'b2', name: 'Egg Biryani', price: 150, category: 'biryani' },
-      { id: 'b3', name: 'Chicken Dum Biryani', price: 200, category: 'biryani' },
-      { id: 'b4', name: 'Mutton Biryani', price: 250, category: 'biryani' },
-      { id: 'b5', name: 'Boneless Chicken Biryani', price: 230, category: 'biryani' },
-      { id: 'b6', name: 'Special Family Chicken Biryani', price: 500, category: 'biryani' }
-    ],
-    chinese: [
-      { id: 'c1', name: 'Veg Noodles', price: 120, category: 'chinese' },
-      { id: 'c2', name: 'Chicken Noodles', price: 150, category: 'chinese' },
-      { id: 'c3', name: 'Veg Fried Rice', price: 130, category: 'chinese' },
-      { id: 'c4', name: 'Chicken Fried Rice', price: 160, category: 'chinese' },
-      { id: 'c5', name: 'Schezwan Fried Rice (Veg)', price: 140, category: 'chinese' },
-      { id: 'c6', name: 'Schezwan Fried Rice (Chicken)', price: 170, category: 'chinese' },
-      { id: 'c7', name: 'Chilli Chicken (Dry/Gravy)', price: 180, category: 'chinese' }
-    ],
-    desserts: [
-      { id: 'd1', name: 'Gulab Jamun (2 pcs)', price: 40, category: 'desserts' },
-      { id: 'd2', name: 'Ice Cream (Vanilla/Strawberry)', price: 60, category: 'desserts' },
-      { id: 'd3', name: 'Double Ka Meetha', price: 70, category: 'desserts' },
-      { id: 'd4', name: 'Qubani Ka Meetha', price: 80, category: 'desserts' }
-    ],
-    drinks: [
-      { id: 'dr1', name: 'Mineral Water (500 ml)', price: 20, category: 'drinks' },
-      { id: 'dr2', name: 'Soft Drinks (Coke/Pepsi)', price: 40, category: 'drinks' },
-      { id: 'dr3', name: 'Sweet Lassi', price: 50, category: 'drinks' },
-      { id: 'dr4', name: 'Masala Chaas', price: 40, category: 'drinks' },
-      { id: 'dr5', name: 'Fresh Lime Soda', price: 50, category: 'drinks' },
-      { id: 'dr6', name: 'Filter Coffee', price: 30, category: 'drinks' },
-      { id: 'dr7', name: 'Tea', price: 20, category: 'drinks' }
-    ]
-  };
+  // Fetch menu items from database
+  const { data: menuItems = [], isLoading } = useQuery({
+    queryKey: ['menu-items'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('is_available', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data as MenuItem[];
+    }
+  });
 
   const categories = [
     { key: 'starters', title: 'Starters', icon: '🥗' },
@@ -78,15 +63,140 @@ const Order = () => {
     return item ? item.quantity : 0;
   };
 
-  const handleCheckout = () => {
+  const handleAddToCart = (menuItem: MenuItem) => {
+    addItem({
+      id: menuItem.id,
+      name: menuItem.name,
+      price: menuItem.price,
+      category: menuItem.category
+    });
+  };
+
+  const filteredMenuItems = menuItems.filter(item => item.category === activeCategory);
+
+  const handleSubmitOrder = async () => {
     if (items.length === 0) {
-      alert('Please add items to your cart before checkout');
+      toast({
+        title: "Cart is empty",
+        description: "Please add items to your cart before placing an order.",
+        variant: "destructive"
+      });
       return;
     }
-    
-    alert(`Thank you for your order! Total: ₹${getTotal()}\n\nWe'll contact you shortly to confirm your order and delivery details.`);
-    clearCart();
+
+    if (!customerInfo.name || !customerInfo.phone) {
+      toast({
+        title: "Missing information",
+        description: "Please provide your name and phone number.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+
+    try {
+      // First, create or get customer
+      let customerId;
+      if (customerInfo.email) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('email', customerInfo.email)
+          .single();
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+        }
+      }
+
+      if (!customerId) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            name: customerInfo.name,
+            email: customerInfo.email || null,
+            phone: customerInfo.phone,
+            address: customerInfo.address || null
+          })
+          .select('id')
+          .single();
+
+        if (customerError) throw customerError;
+        customerId = newCustomer.id;
+      }
+
+      // Create the order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: customerId,
+          customer_name: customerInfo.name,
+          customer_email: customerInfo.email || null,
+          phone_number: customerInfo.phone,
+          delivery_address: customerInfo.address || null,
+          notes: customerInfo.notes || null,
+          total_amount: getTotal(),
+          status: 'pending'
+        })
+        .select('id, order_number')
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = items.map(item => ({
+        order_id: order.id,
+        item_name: item.name,
+        item_category: item.category,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: "Order placed successfully!",
+        description: `Your order #${order.order_number} has been placed. We'll contact you shortly.`,
+      });
+
+      // Clear the cart and form
+      clearCart();
+      setCustomerInfo({
+        name: '',
+        phone: '',
+        email: '',
+        address: '',
+        notes: ''
+      });
+
+    } catch (error) {
+      console.error('Error placing order:', error);
+      toast({
+        title: "Error placing order",
+        description: "There was an issue placing your order. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen py-8 bg-restaurant-warm flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-restaurant-primary mx-auto"></div>
+          <p className="mt-4 text-xl text-gray-600">Loading menu...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-8 bg-restaurant-warm">
@@ -118,23 +228,27 @@ const Order = () => {
 
             {/* Menu Items Grid */}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {menuData[activeCategory as keyof typeof menuData].map((item) => (
+              {filteredMenuItems.map((item) => (
                 <Card key={item.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg text-gray-800">{item.name}</h3>
+                        {item.description && (
+                          <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                        )}
                         <p className="text-2xl font-bold text-restaurant-primary">₹{item.price}</p>
                       </div>
                     </div>
                     
                     {getItemQuantity(item.id) === 0 ? (
                       <Button 
-                        onClick={() => addItem(item)}
+                        onClick={() => handleAddToCart(item)}
                         className="w-full bg-restaurant-primary hover:bg-restaurant-primary/90"
+                        disabled={!item.is_available}
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        Add to Cart
+                        {item.is_available ? 'Add to Cart' : 'Not Available'}
                       </Button>
                     ) : (
                       <div className="flex items-center justify-between">
@@ -161,9 +275,9 @@ const Order = () => {
             </div>
           </div>
 
-          {/* Cart Sidebar */}
+          {/* Cart and Checkout Sidebar */}
           <div className="lg:w-80">
-            <Card className="sticky top-24">
+            <Card className="sticky top-24 mb-6">
               <CardHeader className="bg-restaurant-primary text-white">
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5" />
@@ -223,28 +337,97 @@ const Order = () => {
                         <span className="font-semibold text-lg">Total:</span>
                         <span className="font-bold text-2xl text-restaurant-primary">₹{getTotal()}</span>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <Button 
-                          onClick={handleCheckout}
-                          className="w-full bg-restaurant-primary hover:bg-restaurant-primary/90"
-                          size="lg"
-                        >
-                          Proceed to Checkout
-                        </Button>
-                        <Button 
-                          onClick={clearCart}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Clear Cart
-                        </Button>
-                      </div>
                     </div>
                   </>
                 )}
               </CardContent>
             </Card>
+
+            {/* Customer Information Form */}
+            {items.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Customer Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      value={customerInfo.name}
+                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Your full name"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="phone">Phone Number *</Label>
+                    <Input
+                      id="phone"
+                      value={customerInfo.phone}
+                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+91 9876543210"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={customerInfo.email}
+                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="your.email@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="address">Delivery Address</Label>
+                    <Textarea
+                      id="address"
+                      value={customerInfo.address}
+                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Your delivery address"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="notes">Special Instructions</Label>
+                    <Textarea
+                      id="notes"
+                      value={customerInfo.notes}
+                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Any special requests or instructions"
+                      rows={2}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={handleSubmitOrder}
+                      className="w-full bg-restaurant-primary hover:bg-restaurant-primary/90"
+                      size="lg"
+                      disabled={isSubmittingOrder}
+                    >
+                      {isSubmittingOrder ? 'Placing Order...' : 'Place Order'}
+                    </Button>
+                    <Button 
+                      onClick={clearCart}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Clear Cart
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

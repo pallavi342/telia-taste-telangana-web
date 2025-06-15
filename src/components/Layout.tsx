@@ -1,14 +1,18 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Phone, MapPin, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
+import { useSession } from "@/hooks/useSession";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
   const { items } = useCart();
+  const { user } = useSession();
+  const { toast } = useToast();
   
   const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
@@ -22,6 +26,21 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Logout handler
+  const handleLogout = async () => {
+    // Clean up state
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('supabase.auth.') || key.includes('sb-')) localStorage.removeItem(key);
+      });
+    } catch {}
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch {}
+    toast({ title: "Logged out" });
+    window.location.href = "/auth";
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -52,7 +71,27 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                   {item.name}
                 </Link>
               ))}
-              
+              {/* Auth/Login/Logout Button */}
+              {user ? (
+                <button
+                  className="text-gray-700 hover:text-red-500 px-4 py-2 font-medium transition-colors"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  to="/auth"
+                  className={`font-medium transition-colors ${
+                    isActive("/auth")
+                      ? "text-restaurant-primary border-b-2 border-restaurant-primary"
+                      : "text-gray-700 hover:text-restaurant-primary"
+                  }`}
+                >
+                  Login
+                </Link>
+              )}
+
               {/* Cart Icon */}
               <Link to="/order" className="relative">
                 <Button variant="outline" size="sm" className="relative">
@@ -93,6 +132,30 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                     {item.name}
                   </Link>
                 ))}
+                {/* Auth/Login/Logout Button for mobile */}
+                {user ? (
+                  <button
+                    className="px-4 py-2 text-gray-700 hover:text-red-500 font-medium transition-colors"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    Logout
+                  </button>
+                ) : (
+                  <Link
+                    to="/auth"
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`px-4 py-2 font-medium transition-colors rounded-md ${
+                      isActive("/auth")
+                        ? "bg-restaurant-primary text-white"
+                        : "text-gray-700 hover:bg-restaurant-warm"
+                    }`}
+                  >
+                    Login
+                  </Link>
+                )}
                 <Link
                   to="/order"
                   onClick={() => setIsMenuOpen(false)}
